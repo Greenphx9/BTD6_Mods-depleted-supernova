@@ -18,7 +18,6 @@ namespace InstantDegree
     {
         public static ModSettingBool Enabled = new ModSettingBool(true) { displayName = "Enabled?" };
         public static ModSettingBool AskForDegree = new ModSettingBool(true) { displayName = "Dynamic Degree?" };
-        public static ModSettingInt DefaultDegree = new ModSettingInt(100) { isSlider = true, minValue = 1, maxValue = 100, displayName = "Default degree value" };
 
         [HarmonyPatch(typeof(UnityToSimulation), nameof(UnityToSimulation.UpgradeTowerParagon))]
         class UpgradeToParagon
@@ -43,16 +42,15 @@ namespace InstantDegree
                                 tower.investmentInfo = info;
                                 tower.UpdateDegree();
                             };
-                            PopupScreen.instance.ShowSetValuePopup("Degree", "Set degree", action, DefaultDegree);
+                            PopupScreen.instance.ShowSetValuePopup("Degree", "Set degree", action, 100);
                             break;
                         }
                         else
                         {
-                            degree = DefaultDegree;
+                            info.totalInvestment = Game.instance.model.paragonDegreeDataModel.powerDegreeRequirements[99];
+                            tower.investmentInfo = info;
+                            tower.UpdateDegree();
                         }
-                        info.totalInvestment = Game.instance.model.paragonDegreeDataModel.powerDegreeRequirements[degree-1];
-                        tower.investmentInfo = info;
-                        tower.UpdateDegree();
                         break;
                     }
                 }
