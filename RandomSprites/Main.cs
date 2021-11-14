@@ -1,10 +1,17 @@
 ﻿using Assets.Scripts.Models;
 using Assets.Scripts.Models.GenericBehaviors;
+using Assets.Scripts.Models.Towers;
+using Assets.Scripts.Models.Towers.Behaviors;
 using Assets.Scripts.Models.Towers.Behaviors.Abilities;
 using Assets.Scripts.Models.Towers.Behaviors.Attack;
 using Assets.Scripts.Models.Towers.Projectiles;
+using Assets.Scripts.Models.Towers.Projectiles.Behaviors;
+using Assets.Scripts.Simulation;
 using Assets.Scripts.Unity;
+using Assets.Scripts.Unity.Bridge;
 using Assets.Scripts.Unity.UI_New.InGame;
+using Assets.Scripts.Unity.UI_New.InGame.StoreMenu;
+using Assets.Scripts.Unity.UI_New.InGame.TowerSelectionMenu.TowerSelectionMenuThemes;
 using Assets.Scripts.Utils;
 using BTD_Mod_Helper;
 using BTD_Mod_Helper.Api.ModOptions;
@@ -13,9 +20,11 @@ using HarmonyLib;
 using MelonLoader;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using UnityEngine;
 
+[assembly: MelonColor(ConsoleColor.DarkCyan)]
 [assembly: MelonInfo(typeof(RandomSprites.Main), "Random Displays", "1.0", "DepletedNova")]
 [assembly: MelonGame("Ninja Kiwi", "BloonsTD6")]
 namespace RandomSprites
@@ -54,15 +63,14 @@ namespace RandomSprites
         private static List<SpriteReference> AbilityIcons = new List<SpriteReference>();
 
         // TextTables
-        private List<string> Names = new List<string>();
-        private List<string> Descriptions = new List<string>();
-        private List<string> UpgradeNames = new List<string>();
-        private List<string> UpgradeDescriptions = new List<string>();
+        private static List<string> Names = new List<string>();
+        private static List<string> Descriptions = new List<string>();
+        private static List<string> UpgradeNames = new List<string>();
+        private static List<string> UpgradeDescriptions = new List<string>();
 
         // DOOM
         private static List<string> allDisplays = new List<string>();
         private static List<SpriteReference> allSprites = new List<SpriteReference>();
-        private static Dictionary<int, Tuple<string, SpriteReference>> allBloons = new Dictionary<int, Tuple<string, SpriteReference>>();
         private static List<string> allNames = new List<string>();
         private static List<string> allDescriptions = new List<string>();
 
@@ -73,8 +81,23 @@ namespace RandomSprites
         {
             base.OnGameModelLoaded(model);
             int count = 0;
+            var towerStop = new Stopwatch();
+            towerStop.Start();
             foreach (var tower in model.towers)
             {
+
+                // Paragon fix
+                if (tower.isParagon)
+                {
+                    tower.GetBehavior<ParagonTowerModel>().displayDegreePaths.ForEach(x => TowerDisplays.Add(x.assetPath));
+                }
+                // Air Displays
+                if (tower.HasBehavior<AirUnitModel>())
+                {
+                    TowerDisplays.Add(tower.GetBehavior<AirUnitModel>().display);
+                    allDisplays.Add(tower.GetBehavior<AirUnitModel>().display);
+                }
+                // Tower Names/Descriptions
                 if (!tower.IsHero() && !Names.Contains(tower.baseId))
                 {
                     try
@@ -87,11 +110,14 @@ namespace RandomSprites
                     } catch (Exception e) { }
                 }
                 // Tower Displays
-                if (!TowerDisplays.Contains(tower.GetBehavior<DisplayModel>().display) && tower.GetBehavior<DisplayModel>().display != null)
+                foreach (var towerDisplay in tower.GetBehaviors<DisplayModel>())
                 {
-                    TowerDisplays.Add(tower.GetBehavior<DisplayModel>().display);
-                    allDisplays.Add(tower.GetBehavior<DisplayModel>().display);
-                    count++;
+                    if (!TowerDisplays.Contains(towerDisplay.display) && towerDisplay.display != null)
+                    {
+                        TowerDisplays.Add(towerDisplay.display);
+                        allDisplays.Add(towerDisplay.display);
+                        count++;
+                    }
                 }
                 // Projectile Displays
                 tower.GetDescendants<ProjectileModel>().ForEach(delegate (ProjectileModel projectile)
@@ -103,6 +129,16 @@ namespace RandomSprites
                             ProjectileDisplays.Add(projectile.display);
                             allDisplays.Add(projectile.display);
                             count++;
+                        }
+                        // Spactory Fix
+                        if (projectile.HasBehavior<SetSpriteFromPierceModel>())
+                        {
+                            projectile.GetBehavior<SetSpriteFromPierceModel>().sprites.ToList().ForEach(x =>
+                            {
+                                ProjectileDisplays.Add(x);
+                                allDisplays.Add(x);
+                                count++;
+                            });
                         }
                     }
                 });
@@ -150,7 +186,11 @@ namespace RandomSprites
                     count++;
                 }
             }
-            
+            towerStop.Stop();
+            string towerElapsed = string.Format("{0:00}.{1:00}", towerStop.Elapsed.TotalSeconds, towerStop.Elapsed.Milliseconds);
+            MelonLogger.Msg("Tower Displays: " + towerElapsed);
+            Stopwatch upgradeStop = new Stopwatch();
+            upgradeStop.Start();
             foreach (var upgrade in model.upgrades)
             {
                 // Upgrade Names/Descriptions
@@ -170,12 +210,18 @@ namespace RandomSprites
                 }
                 count++;
             }
+            upgradeStop.Stop();
+            string upgradeElapsed = string.Format("{0:00}.{1:00}", upgradeStop.Elapsed.TotalSeconds, upgradeStop.Elapsed.Milliseconds);
+            MelonLogger.Msg("Upgrade Displays: " + upgradeElapsed);
+            Stopwatch bloonStop = new Stopwatch();
+            bloonStop.Start();
             // Bloon Displays/Sprites
             foreach (var bloon in model.bloons)
             {
                 if (!bloon.isBoss)
                 {
-                    allBloons.Add(allBloons.Count, new Tuple<string, SpriteReference>(bloon.display, bloon.icon));
+                    allDisplays.Add(bloon.display);
+                    allSprites.Add(bloon.icon);
                     if (bloon.isMoab)
                     {
                         MoabVisuals.Add(MoabVisuals.Count, new Tuple<string, SpriteReference>(bloon.display, bloon.icon));
@@ -187,6 +233,9 @@ namespace RandomSprites
                     count += 2;
                 }
             }
+            bloonStop.Stop();
+            string bloonElapsed = string.Format("{0:00}.{1:00}", bloonStop.Elapsed.TotalSeconds, bloonStop.Elapsed.Milliseconds);
+            MelonLogger.Msg("Bloon Displays: " + bloonElapsed);
             MelonLogger.Msg($"Displays gathered: {count}");
         }
 
@@ -205,29 +254,23 @@ namespace RandomSprites
             });
         }
 
-        // Post-Title
-        public override void OnMainMenu()
-        {
-            base.OnMainMenu();
-            UpdateSprites();
-            MelonLogger.Msg("Displays loaded");
-        }
-
-        [HarmonyPatch(typeof(InGame),nameof(InGame.RoundStart))]
+        [HarmonyPatch(typeof(Simulation),nameof(Simulation.RoundStart))]
         class roundStart_Patch
         {
-            [HarmonyPostfix]
+            [HarmonyPrefix]
             internal static void Prefix()
             {
                 UpdateBloons();
             }
         }
 
-        public void UpdateSprites()
+        public static void UpdateSprites()
         {
+            var towerStop = new Stopwatch();
+            towerStop.Start();
             foreach (var tower in Game.instance.model.towers)
             {
-                // Tower TextTables
+                // Tower Name
                 if (enableName)
                 {
                     try
@@ -240,7 +283,7 @@ namespace RandomSprites
                             upgradeDesc = getRandomDisplay(allDescriptions);
                         }
                         Game.instance.GetLocalizationManager().textTable[tower.baseId] = upgradeName;
-                        Game.instance.GetLocalizationManager().textTable[tower.baseId+" Description"] = upgradeDesc;
+                        Game.instance.GetLocalizationManager().textTable[tower.baseId + " Description"] = upgradeDesc;
                     }
                     catch (Exception e) { }
                 }
@@ -248,13 +291,43 @@ namespace RandomSprites
                 if (enableTowers)
                 {
                     string ranDisplay = getRandomDisplay(TowerDisplays);
+                    if (spriteHell)
+                        ranDisplay = getRandomDisplay(allDisplays);
                     tower.GetBehavior<DisplayModel>().display = ranDisplay;
                     tower.display = ranDisplay;
+                    if (tower.GetBehaviors<DisplayModel>().Count > 1)
+                    {
+                        string ranDisplay2 = getRandomDisplay(TowerDisplays);
+                        if (spriteHell)
+                            ranDisplay2 = getRandomDisplay(allDisplays);
+                        tower.GetBehaviors<DisplayModel>()[1].display = ranDisplay2;
+                    }
+                    // AirDisplay
+                    if (tower.HasBehavior<AirUnitModel>())
+                    {
+                        var ranDisplay2 = getRandomDisplay(TowerDisplays);
+                        if (spriteHell)
+                            ranDisplay2 = getRandomDisplay(allDisplays);
+                        tower.GetBehavior<AirUnitModel>().display = ranDisplay2;
+                    }
+                    if (tower.isParagon)
+                    {
+                        tower.GetBehavior<ParagonTowerModel>().displayDegreePaths.ForEach(x =>
+                        {
+                            var display = getRandomDisplay(TowerDisplays);
+                            if (spriteHell)
+                                display = getRandomDisplay(allDisplays);
+                            x.assetPath = display;
+                        });
+                    }
                 }
                 // Projectile Display
                 if (enableProjectiles)
                     foreach (var projectile in tower.GetDescendants<ProjectileModel>().ToList())
                     {
+                        // Spactory fix
+                        if (projectile.HasBehavior<SetSpriteFromPierceModel>())
+                            projectile.RemoveBehavior<SetSpriteFromPierceModel>();
                         if (projectile.HasBehavior<DisplayModel>())
                         {
                             string ranProjectile = getRandomDisplay(ProjectileDisplays);
@@ -263,6 +336,7 @@ namespace RandomSprites
                             projectile.display = ranProjectile;
                             projectile.GetBehavior<DisplayModel>().display = ranProjectile;
                         }
+                        
                     }
                 // WeaponModel Display
                 if (enableTowers)
@@ -303,8 +377,11 @@ namespace RandomSprites
                 }
                 
             }
-            
-
+            towerStop.Stop();
+            string towerElapsed = string.Format("{0:00}.{1:00}", towerStop.Elapsed.TotalSeconds, towerStop.Elapsed.Milliseconds);
+            MelonLogger.Msg("Towers updated: " + towerElapsed);
+            var upgradeStop = new Stopwatch();
+            upgradeStop.Start();
             foreach (var upgrade in Game.instance.model.upgrades)
             {
                 // Upgrade Text
@@ -332,8 +409,16 @@ namespace RandomSprites
                     upgrade.icon = upgradeIcon;
                 }
             }
+            upgradeStop.Stop();
+            string upgradeElapsed = string.Format("{0:00}.{1:00}", upgradeStop.Elapsed.TotalSeconds, upgradeStop.Elapsed.Milliseconds);
+            MelonLogger.Msg("Towers updated: " + upgradeElapsed);
+            Stopwatch bloonStop = new Stopwatch();
+            bloonStop.Start();
             // Bloon Displays/Sprites
             UpdateBloons();
+            bloonStop.Stop();
+            string bloonElapsed = string.Format("{0:00}.{1:00}", bloonStop.Elapsed.TotalSeconds, bloonStop.Elapsed.Milliseconds);
+            MelonLogger.Msg("Towers updated: " + bloonElapsed);
         }
 
         public static void UpdateBloons()
@@ -343,18 +428,22 @@ namespace RandomSprites
                 {
                     if (!bloon.isBoss)
                     {
-                        Tuple<string, SpriteReference> bloonVisual = allBloons[random.Next(0, allBloons.Count - 1)];
                         if (!spriteHell)
                         {
+                            Tuple<string, SpriteReference> bloonVisual = MoabVisuals[random.Next(0, MoabVisuals.Count - 1)];
                             if (!bloon.isMoab)
                                 bloonVisual = BloonVisuals[random.Next(0, BloonVisuals.Count - 1)];
                             else
                                 bloonVisual = MoabVisuals[random.Next(0, MoabVisuals.Count - 1)];
+                            bloon.display = bloonVisual.Item1;
+                            bloon.icon = bloonVisual.Item2;
                         }
-                        bloon.display = bloonVisual.Item1;
-                        bloon.icon = bloonVisual.Item2;
+                        else
+                        {
+                            bloon.display = getRandomDisplay(allDisplays);
+                            bloon.icon = getRandomDisplay(allSprites);
+                        }
                     }
-                    
                 }
         }
     }
