@@ -41,8 +41,7 @@ namespace InstantDegree
                             Il2CppSystem.Action<int> action = (Il2CppSystem.Action<int>)delegate (int x)
                             {
                                 setDegree(x, ref tower);
-                                if (tower.isActive)
-                                    tower.CreateDegreeText();
+                                if (tower.isActive) tower.CreateDegreeText();
                             };
                             PopupScreen.instance.ShowSetValuePopup("Instant Degree", "Set Paragon degree:", action, 100);
                             break;
@@ -51,7 +50,6 @@ namespace InstantDegree
                 }
             }
         }
-
 
         // UI
         static GameObject ParagonButton = null;
