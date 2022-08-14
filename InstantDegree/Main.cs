@@ -1,4 +1,5 @@
-﻿using Assets.Scripts.Simulation.Towers.Behaviors;
+﻿using Assets.Scripts;
+using Assets.Scripts.Simulation.Towers.Behaviors;
 using Assets.Scripts.Unity;
 using Assets.Scripts.Unity.Bridge;
 using Assets.Scripts.Unity.UI_New.InGame;
@@ -29,7 +30,7 @@ namespace InstantDegree
         class UpgradeToParagon
         {
             [HarmonyPostfix]
-            internal static void Postfix(int id)
+            internal static void Postfix(ObjectId id)
             {
                 if (degree && enabled)
                 {
